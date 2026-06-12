@@ -496,7 +496,7 @@ ${rule3}
       if(attempt > 0) btn.textContent = `⚙️ 整理中…（第 ${attempt+1} 次嘗試）`;
       try{
         // 呼叫公開穩定版的 gemini-1.5-flash 模型
-        const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${DEVELOPER_API_KEY}`, {
+        const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${DEVELOPER_API_KEY}`, {
           method:"POST",
           headers:{"Content-Type":"application/json"},
           body:JSON.stringify(payload)
