@@ -384,16 +384,17 @@ function buildPrompt(notes){
   const keys = F.feedback.map(f=>`「${f.label}」`).join("、");
   
   let rule2 = cur === "minicex" 
-    ? `2. 正向肯定放入「${F.feedback[0].label}」；待改進與具體建議放入「${F.feedback[1].label}」；下次觀察前可執行的具體目標放入「${F.feedback[2].label}」。`
-    : `2. 正向肯定放入「${F.feedback[0].label}」；待改進與具體建議放入「${F.feedback[1].label}」。`;
+    ? `2. 分類邏輯：\n   - 稱讚、做對的地方，歸類為「${F.feedback[0].label}」。\n   - 教師的提醒、指正、建議或需加強處，歸類為「${F.feedback[1].label}」。\n   - 下次需執行的具體計畫，歸類為「${F.feedback[2].label}」。`
+    : `2. 分類邏輯：\n   - 稱讚、做對的地方，歸類為「${F.feedback[0].label}」。\n   - 教師的提醒、指正、建議或需加強處，歸類為「${F.feedback[1].label}」。`;
 
-  return `你是復健科臨床教師的助理。以下是教師對學員的直接觀察筆記，請整理成正式評估表回饋文字，分成 ${keys} ${F.feedback.length} 個欄位。
+  return `你是復健科臨床教師（物理/職能治療）的專業助理。以下是教師對學員的直接觀察筆記，請整理成正式評估表回饋文字，分成 ${keys} 這 ${F.feedback.length} 個欄位。
 
 規則：
 1. 使用繁體中文、臨床專業但精簡的語氣，以具體行為描述為主，每欄 1～3 句。
 ${rule2}
-3. 筆記中沒有提到的內容不要編造；若某欄沒有對應內容請留空並註明。
+3. 筆記中沒有提到的內容絕對不要編造；若某欄沒有對應內容請留空。
 4. 不要出現病人姓名等可識別資訊。
+5. 直接寫出回饋內容即可，絕對不要在開頭重複加上標題名稱。
 
 觀察筆記：
 ${notes}`;
@@ -462,17 +463,20 @@ async function runAI(){
       schemaProperties[f.k] = { type: "STRING", description: f.label };
   });
 
-  let rule3 = cur === "minicex" 
-    ? `3. 正向肯定放入「${F.feedback[0].label}」；待改進與具體建議放入「${F.feedback[1].label}」；下次觀察前可執行的具體目標放入「${F.feedback[2].label}」。`
-    : `3. 正向肯定放入「${F.feedback[0].label}」；待改進與具體建議放入「${F.feedback[1].label}」。`;
+  const keysDesc = F.feedback.map(f => `"${f.k}"(對應表單的「${f.label}」)`).join("、");
 
-  const systemPrompt = `你是復健科臨床教師的助理。請將教師對學員的直接觀察筆記，整理成正式評估表回饋文字。
+  let rule3 = cur === "minicex" 
+    ? `3. 嚴格分類邏輯：\n   - 若筆記內容為稱讚、做得好的地方，請歸類至 "${F.feedback[0].k}" 欄位。\n   - 若筆記內容為教師的提醒、建議、指正或缺失，請歸類至 "${F.feedback[1].k}" 欄位。\n   - 若筆記有明確指出下次該做什麼的具體目標，請歸類至 "${F.feedback[2].k}" 欄位。`
+    : `3. 嚴格分類邏輯：\n   - 若筆記內容為稱讚、做得好的地方，請歸類至 "${F.feedback[0].k}" 欄位。\n   - 若筆記內容為教師的提醒、建議、指正或缺失，請歸類至 "${F.feedback[1].k}" 欄位。`;
+
+  const systemPrompt = `你是復健科臨床教師（物理/職能治療）的專業助理。請將教師對學員的直接觀察筆記，整理成正式評估表回饋文字。
 規則：
-1. 嚴格依照提供的 JSON Schema 輸出。
+1. 嚴格依照提供的 JSON Schema 輸出，可填寫的欄位名稱為：${keysDesc}。
 2. 使用繁體中文、臨床專業但精簡的語氣，以具體行為描述為主，每個欄位產生 1～3 句話。
 ${rule3}
-4. 筆記中沒有提到的內容絕對不要編造；若某欄沒有對應內容，該欄請回傳空字串 ("")。
-5. 內容中絕對不要出現病人姓名等可識別之隱私資訊。`;
+4. 筆記中沒有提到的內容絕對不要自行推論或編造；若某個欄位沒有對應的內容可填，該欄位請務必直接回傳空字串 ""。
+5. 內容中絕對不要出現病人姓名等可識別之隱私資訊。
+6. 輸出內容直接寫出回饋句子即可，絕對不要在文字開頭重複加上標題（例如：不要寫「值得嘉許：...」）。`;
 
   const userQuery = `觀察筆記：\n${notes}`;
 
@@ -495,7 +499,6 @@ ${rule3}
     for(let attempt=0; attempt<=3; attempt++){
       if(attempt > 0) btn.textContent = `⚙️ 整理中…（第 ${attempt+1} 次嘗試）`;
       try{
-        // 呼叫公開穩定版的 gemini-1.5-flash 模型
         const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${DEVELOPER_API_KEY}`, {
           method:"POST",
           headers:{"Content-Type":"application/json"},
@@ -519,8 +522,11 @@ ${rule3}
     
     if(!data || data.error) throw lastErr;
     
-    const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    let textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
     if(!textResponse) throw new Error("AI 未回傳內容");
+    
+    // 防呆機制：清除 AI 有時會亂加的 Markdown 標籤，防止 JSON 解析失敗
+    textResponse = textResponse.replace(/^```json\n?/i, '').replace(/\n?```$/i, '').trim();
     
     const parsed = JSON.parse(textResponse);
     const S = state[cur];
