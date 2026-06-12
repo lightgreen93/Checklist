@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>復健科臨床評估表單系統</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=Noto+Serif+TC:wght@600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#FAF9F6;
+  --ink:#1F2A2A;
+  --teal:#0E5A5A;
+  --teal-soft:#E3EFEE;
+  --line:#D8D5CC;
+  --low:#FBEFEA;  --low-text:#9A4A2E;
+  --mid:#F2F1EA;  --mid-text:#5A5A4F;
+  --high:#E8F1E6; --high-text:#3A6B3A;
+  --amber:#B07A1E;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Noto Sans TC",system-ui,sans-serif;background:var(--paper);color:var(--ink);line-height:1.6;-webkit-tap-highlight-color:transparent}
+.wrap{max-width:760px;margin:0 auto;padding:20px 16px 120px}
+header.app{border-bottom:3px double var(--teal);padding:14px 0 12px;margin-bottom:18px}
+header.app h1{font-family:"Noto Serif TC",serif;font-size:1.25rem;color:var(--teal);letter-spacing:.04em}
+header.app p{font-size:.8rem;color:#6B6B60;margin-top:2px}
+/* 表單選擇 */
+.picker{display:grid;grid-template-columns:repeat(3, 1fr);gap:10px;margin-bottom:20px}
+.picker button{padding:14px 10px;border:1.5px solid var(--line);background:#fff;border-radius:10px;font-size:.95rem;font-weight:500;cursor:pointer;font-family:inherit;color:var(--ink);transition:border-color .15s,background .15s}
+.picker button.on{border-color:var(--teal);background:var(--teal-soft);color:var(--teal);font-weight:700}
+/* 區塊 */
+.card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px}
+.card h2{font-size:.85rem;letter-spacing:.12em;color:var(--teal);font-weight:700;margin-bottom:12px;text-transform:uppercase}
+.fgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px 14px}
+.field{display:flex;flex-direction:column;gap:4px}
+.field.full{grid-column:1/-1}
+.field label{font-size:.78rem;color:#6B6B60}
+.field input[type=text],.field input[type=date],.field input[type=time],.field input[type=number],.field textarea{padding:8px 10px;border:1px solid var(--line);border-radius:8px;font-size:.95rem;font-family:inherit;background:#FDFDFB;width:100%}
+.field textarea{min-height:110px;resize:vertical;line-height:1.7}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chips button{padding:6px 12px;border:1px solid var(--line);background:#fff;border-radius:999px;font-size:.85rem;cursor:pointer;font-family:inherit;color:var(--ink)}
+.chips button.on{background:var(--teal);border-color:var(--teal);color:#fff;font-weight:500}
+/* 評分列 —— signature element */
+.item{padding:12px 0;border-bottom:1px dashed var(--line)}
+.item:last-child{border-bottom:none}
+.item .name{font-weight:700;font-size:.95rem}
+.item .guide{font-size:.74rem;color:#7C7C70;margin:2px 0 8px;line-height:1.5}
+.band{display:flex;gap:4px;align-items:stretch}
+.zone{display:flex;gap:3px;padding:3px;border-radius:8px}
+.zone.low{background:var(--low)} .zone.mid{background:var(--mid)} .zone.high{background:var(--high)}
+.band button{width:34px;height:38px;border:1px solid transparent;border-radius:6px;background:transparent;font-size:.9rem;font-family:inherit;cursor:pointer;color:inherit}
+.zone.low button{color:var(--low-text)} .zone.mid button{color:var(--mid-text)} .zone.high button{color:var(--high-text)}
+.band button.on{background:var(--teal);color:#fff !important;font-weight:700;border-color:var(--teal)}
+.band .na{margin-left:auto;width:auto;padding:0 10px;border:1px dashed var(--line);color:#8A8A7E;font-size:.78rem;border-radius:8px}
+.band .na.on{background:#555;color:#fff;border-style:solid;border-color:#555}
+.zonelabels{display:flex;gap:4px;font-size:.66rem;color:#9A9A8E;margin-top:3px}
+.zonelabels span{text-align:center}
+/* AI 區 */
+.aibtn{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;background:var(--amber);color:#fff;border:none;border-radius:8px;font-size:.9rem;font-weight:700;cursor:pointer;font-family:inherit}
+.aibtn:disabled{opacity:.5;cursor:wait}
+.ainote{font-size:.75rem;color:#8A8A7E;margin-top:6px}
+.aierr{font-size:.8rem;color:#A33;margin-top:6px;display:none;padding:8px;background:#FFF0F0;border-radius:6px;}
+/* 底部固定列 */
+.actionbar{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--line);padding:10px 16px;display:flex;gap:10px;justify-content:center;z-index:50}
+.actionbar button{padding:11px 22px;border-radius:10px;font-size:.95rem;font-weight:700;font-family:inherit;cursor:pointer}
+.btn-export{background:var(--teal);color:#fff;border:none}
+.btn-clear{background:#fff;color:#8A4A3A;border:1px solid var(--line)}
+.hint{text-align:center;font-size:.72rem;color:#9A9A8E;padding:6px 0 0}
+/* 列印 */
+#printArea{display:none}
+@media print{
+  body *{visibility:hidden}
+  .wrap,.actionbar{display:none}
+  #printArea{display:block;visibility:visible;position:absolute;left:0;top:0;width:100%}
+  #printArea *{visibility:visible}
+  @page{size:A4;margin:14mm 16mm}
+}
+#printArea{font-family:"Noto Sans TC","標楷體",serif;color:#000;font-size:10.5pt;line-height:1.55}
+#printArea .pt-title{text-align:center;font-weight:700;font-size:18pt;margin-bottom:4pt;letter-spacing:0.05em}
+#printArea .pt-sub{text-align:center;font-size:14pt;margin-bottom:12pt}
+#printArea .pt-row{margin:2pt 0}
+#printArea .pt-item{margin:3pt 0 0}
+#printArea .pt-guide{font-size:8pt;color:#444;margin:0 0 2pt 14pt}
+#printArea .pt-fb{margin-top:6pt}
+#printArea .pt-fb b{display:block}
+#printArea .pt-sig{margin-top:14pt;display:flex;justify-content:space-between}
+#printArea hr{border:none;border-top:1px solid #000;margin:6pt 0}
+@media(max-width:480px){
+  .picker{grid-template-columns:1fr}
+  .fgrid{grid-template-columns:1fr}
+  .band button{width:30px;height:36px;font-size:.85rem}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="app" style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px;">
+    <div>
+      <h1>復健科臨床評估表單</h1>
+      <p>雲林基督教醫院復健技術課（物理治療／職能治療通用）· 填寫資料不會被儲存，匯出 PDF 後請自行歸檔 · 請勿輸入病人姓名或病歷號</p>
+    </div>
+    <div style="text-align:right; flex-shrink:0;">
+      <label id="logoLabel" for="logoUpload" style="font-size:.75rem; color:var(--teal); border:1px solid var(--teal); padding:4px 8px; border-radius:6px; cursor:pointer; display:inline-block; margin-bottom:4px; background:#fff;">➕ 設定 PDF Logo</label>
+      <input type="file" id="logoUpload" accept="image/*" style="display:none" onchange="handleLogoUpload(event)">
+      <br>
+      <img id="logoPreview" src="" alt="Logo" style="height:35px; object-fit:contain; display:none;">
+    </div>
+  </header>
+
+  <div class="picker">
+    <button id="pick-minicex" class="on" onclick="switchForm('minicex')">Mini-CEX 評量表</button>
+    <button id="pick-dops" onclick="switchForm('dops')">Splint-DOPS 副木評估</button>
+    <button id="pick-evalDops" onclick="switchForm('evalDops')">評估工具 DOPS</button>
+  </div>
+
+  <div id="formRoot"></div>
+
+  <div class="card" id="aiCard">
+    <h2>回饋整理 (內建 Gemini AI)</h2>
+    <div class="field full">
+      <label>觀察筆記（口語、片段都可以，AI 會整理成欄位文字）</label>
+      <textarea id="rawNotes" placeholder="例：個案製作前置式垂足板，precut 尺寸太小無法包覆腳踝……"></textarea>
+    </div>
+    <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <button class="aibtn" id="aiGo" onclick="runAI()">🚀 AI 整理至回饋欄</button>
+      <button class="aibtn" style="background:#fff;color:var(--amber);border:1.5px solid var(--amber)" onclick="copyPrompt()">複製整理指令 (手動備用)</button>
+    </div>
+    <div class="ainote">直接點擊「AI 整理至回饋欄」由內建系統自動完成。若失敗時，可按右鈕複製指令，自行到其他 AI 平台對話整理後，再把結果填回下方欄位。</div>
+    <div class="aierr" id="aiErr"></div>
+    <div id="fbFields" style="margin-top:14px"></div>
+  </div>
+</div>
+
+<div class="actionbar">
+  <div style="display:flex;flex-direction:column;align-items:center;gap:4px;width:100%">
+    <div style="display:flex;gap:10px;justify-content:center">
+      <button class="btn-clear" id="clearBtn" onclick="clearAll()">清除重填</button>
+      <button class="btn-export" id="exportBtn" onclick="exportPDF()">匯出 PDF</button>
+    </div>
+    <div id="barMsg" style="font-size:.75rem;color:#8A8A7E;min-height:1em"></div>
+  </div>
+</div>
+
+<div id="printArea"></div>
+
+<script>
+/* ---------- 表單定義 ---------- */
+const FORMS = {
+  minicex: {
+    title: "雲林基督教醫院復健技術課",
+    subtitle: "迷你臨床檢定 Mini-CEX 評量表",
+    info: [
+      {k:"teacher", label:"教師姓名", type:"text"},
+      {k:"teacherRole", label:"教師角色", type:"chips", opts:["臨床","資深"]},
+      {k:"trainee", label:"學員姓名", type:"text"},
+      {k:"traineeRole", label:"學員身分", type:"chips", opts:["實習","PGY1","PGY2"]},
+      {k:"date", label:"日期", type:"date"},
+      {k:"time", label:"時間", type:"time"},
+      {k:"place", label:"地點", type:"chips", opts:["電療室","運動治療室","兒童治療室","其他"]},
+      {k:"placeOther", label:"其他地點（選「其他」時填寫）", type:"text"},
+      {k:"sex", label:"病人性別", type:"chips", opts:["男","女"]},
+      {k:"age", label:"年齡", type:"number"},
+      {k:"newold", label:"新／舊病人", type:"chips", opts:["新病人","舊病人"]},
+      {k:"dx", label:"診斷（請勿填寫病人姓名）", type:"text", full:true},
+      {k:"proc", label:"處置操作", type:"text", full:true},
+      {k:"obsMin", label:"直接觀察時間（分鐘）", type:"number"},
+      {k:"fbMin", label:"回饋時間（分鐘）", type:"number"}
+    ],
+    naLabel: "未觀察",
+    items: [
+      {n:"1. 醫療面談", g:"以功能為核心蒐集主訴、病史、功能限制與病人期待；提問有順序，適當回應語言與非語言訊息，建立信任感。"},
+      {n:"2. 身體檢查", g:"依個案目標選擇合宜實作評估（動作、感覺、肌力、平衡、上肢功能等），流程合邏輯有效率；操作前後說明，保護隱私並降低不適。"},
+      {n:"3. 操作技能", g:"依個案選用適切評估工具或治療技術，遵循標準化指導語、程序與計分；正確記錄並解釋結果、連結治療目標，應變得宜。"},
+      {n:"4. 諮商衛教", g:"解釋理由並取得同意；依理解程度調整衛教深度，含居家運動與活動建議、代償策略與家屬指導，並確認個案理解。"},
+      {n:"5. 臨床判斷", g:"整合資料確立功能問題與優先順序；辨識風險與限制、推論原因，形成以個案為中心的治療方向。"},
+      {n:"6. 組織效能", g:"有條理、有效率於限定時間完成評量；時間管理與輕重緩急排序得當，善用資源並串連團隊合作。"},
+      {n:"7. 人道專業", g:"表現尊重、同理並建立互信；保有倫理與保密意識，維護舒適與尊嚴，尊重家庭文化，知道能力界線。"}
+    ],
+    scaleNote: "1~3 分代表未符合臨床與訓練要求。4~6 分代表符合臨床與訓練要求。7 分以上代表符合臨床與訓練要求且優秀。",
+    feedback: [
+      {k:"praise", label:"值得嘉許"},
+      {k:"improve", label:"可再精進"},
+      {k:"action", label:"共識行動"}
+    ],
+    sig: ["學員簽章","教師簽章"]
+  },
+  dops: {
+    title: "雲林基督教醫院復健技術課",
+    subtitle: "操作技能直接觀察評估表 Splint-DOPS",
+    info: [
+      {k:"date", label:"實施日期", type:"date"},
+      {k:"place", label:"評估地點", type:"chips", opts:["治療室","病房","其他"]},
+      {k:"trainee", label:"學員姓名", type:"text"},
+      {k:"teacher", label:"教師姓名", type:"text"},
+      {k:"skill", label:"操作技能名稱", type:"text", full:true},
+      {k:"tTimes", label:"教師曾用 DOPS 評估學員總次數", type:"chips", opts:["0","1","2","3","4","5-9",">10"]},
+      {k:"sTimes", label:"學員曾執行此技能總次數", type:"chips", opts:["0","1","2","3","4","5-9",">10"]},
+      {k:"diff", label:"此操作技能困難度", type:"chips", opts:["低","中","高"]}
+    ],
+    naLabel: "N/A",
+    items: [
+      {n:"1. 病人辨識"},{n:"2. 確認受傷位置"},{n:"3. 製作前準備"},
+      {n:"4. 選擇適當副木材料及裁剪"},{n:"5. 確認副木溫度"},{n:"6. 正確副木製作成型"},
+      {n:"7. 完成修改及固定帶位置"},{n:"8. 詢問穿戴舒適度"},{n:"9. 正確副木穿戴及注意事項"},
+      {n:"10. 相關復健活動衛教"}
+    ],
+    scaleNote: "1~3 分：未達最低標準；4~6 分：達到預期標準；7~9 分：超過預期標準。",
+    feedback: [
+      {k:"good", label:"表現良好的項目"},
+      {k:"improve", label:"建議加強項目"}
+    ],
+    sig: ["教師","學員"]
+  },
+  evalDops: {
+    title: "雲林基督教醫院復健技術課",
+    subtitle: "操作技能直接觀察評估表 (評估工具 DOPS)",
+    info: [
+      {k:"date", label:"實施日期", type:"date"},
+      {k:"place", label:"評估地點", type:"chips", opts:["治療室","病房","其他"]},
+      {k:"trainee", label:"學員姓名", type:"text"},
+      {k:"teacher", label:"教師姓名", type:"text"},
+      {k:"skill", label:"操作技能名稱 (Evaluation Tool)", type:"text", full:true},
+      {k:"tTimes", label:"教師曾用 DOPS 評估學員總次數", type:"chips", opts:["0","1","2","3","4","5-9",">10"]},
+      {k:"sTimes", label:"學員曾執行此技能總次數", type:"chips", opts:["0","1","2","3","4","5-9",">10"]},
+      {k:"diff", label:"此操作技能困難度", type:"chips", opts:["低","中","高"]}
+    ],
+    naLabel: "N/A",
+    items: [
+      {n:"1. 施測前準備(工具及環境)"},
+      {n:"2. 說明施測技巧"},
+      {n:"3. 示範技巧"},
+      {n:"4. 評估流程順暢"},
+      {n:"5. 正確使用評分表"},
+      {n:"6. 正確給分"},
+      {n:"7. 常模對照"},
+      {n:"8. 解釋評估結果"},
+      {n:"9. 評估工具注意事項"},
+      {n:"10. 整體表現"}
+    ],
+    scaleNote: "1~3 分：未達最低標準；4~6 分：達到預期標準；7~9 分：超過預期標準。",
+    feedback: [
+      {k:"good", label:"表現良好的項目"},
+      {k:"improve", label:"建議加強項目"}
+    ],
+    sig: ["教師","學員"]
+  }
+};
+
+let cur = "minicex";
+let state = { minicex:{info:{},scores:{},fb:{}}, dops:{info:{},scores:{},fb:{}}, evalDops:{info:{},scores:{},fb:{}} };
+
+/* ---------- Logo 處理 ---------- */
+let customLogoBase64 = localStorage.getItem('formLogoBase64') || "";
+
+function initLogo(){
+  const preview = document.getElementById("logoPreview");
+  const label = document.getElementById("logoLabel");
+  if(customLogoBase64){
+    preview.src = customLogoBase64;
+    preview.style.display = "inline-block";
+    label.textContent = "🔄 更換 Logo";
+  }
+}
+
+async function prefetchDefaultLogo() {
+  // 如果已經有記憶的 Logo，就直接使用
+  if (customLogoBase64) {
+    initLogo();
+    return;
+  }
+  try {
+    // 自動從公開圖庫抓取彰基 Logo 並轉換為安全的 Base64 格式，避免 PDF 截圖失敗
+    const url = "https://upload.wikimedia.org/wikipedia/zh/thumb/0/00/Changhua_Christian_Hospital_logo.svg/300px-Changhua_Christian_Hospital_logo.svg.png";
+    const res = await fetch(url);
+    const blob = await res.blob();
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      customLogoBase64 = reader.result;
+      initLogo();
+    };
+    reader.readAsDataURL(blob);
+  } catch(e) {
+    console.log("自動載入 Logo 失敗，可手動上傳", e);
+  }
+}
+
+function handleLogoUpload(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = function(evt){
+    customLogoBase64 = evt.target.result;
+    try { localStorage.setItem('formLogoBase64', customLogoBase64); } catch(err) {}
+    initLogo();
+    
+    const msg = document.getElementById("barMsg");
+    msg.textContent = "✅ Logo 已儲存！匯出 PDF 時將自動套用。";
+    setTimeout(()=>msg.textContent="", 4000);
+  };
+  reader.readAsDataURL(file);
+}
+
+/* ---------- 畫面 ---------- */
+function switchForm(f){
+  cur = f;
+  document.getElementById("pick-minicex").classList.toggle("on", f==="minicex");
+  document.getElementById("pick-dops").classList.toggle("on", f==="dops");
+  document.getElementById("pick-evalDops").classList.toggle("on", f==="evalDops");
+  render();
+}
+
+function render(){
+  const F = FORMS[cur], S = state[cur];
+  let h = '<div class="card"><h2>基本資料</h2><div class="fgrid">';
+  for(const fd of F.info){
+    h += `<div class="field${fd.full?" full":""}"><label>${fd.label}</label>`;
+    if(fd.type==="chips"){
+      h += '<div class="chips">' + fd.opts.map(o=>
+        `<button class="${S.info[fd.k]===o?"on":""}" onclick="setInfo('${fd.k}','${o}')">${o}</button>`).join("") + '</div>';
+    } else {
+      h += `<input type="${fd.type}" value="${S.info[fd.k]||""}" oninput="state['${cur}'].info['${fd.k}']=this.value">`;
+    }
+    h += '</div>';
+  }
+  h += '</div></div>';
+
+  h += `<div class="card"><h2>評量項目</h2>
+    <div style="font-size:.74rem;color:#8A8A7E;margin-bottom:8px">${F.scaleNote}</div>`;
+  F.items.forEach((it,i)=>{
+    const sel = S.scores[i];
+    h += `<div class="item"><div class="name">${it.n}</div>`;
+    if(it.g) h += `<div class="guide">${it.g}</div>`;
+    h += '<div class="band">';
+    h += '<div class="zone low">' +[1,2,3].map(v=>scoreBtn(i,v,sel)).join("")+'</div>';
+    h += '<div class="zone mid">' +[4,5,6].map(v=>scoreBtn(i,v,sel)).join("")+'</div>';
+    h += '<div class="zone high">'+[7,8,9].map(v=>scoreBtn(i,v,sel)).join("")+'</div>';
+    h += `<button class="na ${sel==="NA"?"on":""}" onclick="setScore(${i},'NA')">${F.naLabel}</button>`;
+    h += '</div>';
+    h += `<div class="zonelabels"><span style="flex:1">未達標準</span><span style="flex:1">符合標準</span><span style="flex:1">優秀</span></div>`;
+    h += '</div>';
+  });
+  h += '</div>';
+  document.getElementById("formRoot").innerHTML = h;
+  renderFb();
+}
+
+function scoreBtn(i,v,sel){
+  return `<button class="${sel===v?"on":""}" onclick="setScore(${i},${v})">${v}</button>`;
+}
+function setInfo(k,v){
+  const S = state[cur];
+  S.info[k] = (S.info[k]===v) ? "" : v;
+  render();
+}
+function setScore(i,v){
+  const S = state[cur];
+  S.scores[i] = (S.scores[i]===v) ? null : v;
+  render();
+}
+function renderFb(){
+  const F = FORMS[cur], S = state[cur];
+  document.getElementById("fbFields").innerHTML = F.feedback.map(f=>
+    `<div class="field full" style="margin-bottom:10px"><label>${f.label}</label>
+     <textarea oninput="state['${cur}'].fb['${f.k}']=this.value" id="fb-${f.k}">${S.fb[f.k]||""}</textarea></div>`
+  ).join("");
+}
+
+/* ---------- AI 整理 ---------- */
+function buildPrompt(notes){
+  const F = FORMS[cur];
+  const keys = F.feedback.map(f=>`「${f.label}」`).join("、");
+  
+  let rule2 = cur === "minicex" 
+    ? `2. 正向肯定放入「${F.feedback[0].label}」；待改進與具體建議放入「${F.feedback[1].label}」；下次觀察前可執行的具體目標放入「${F.feedback[2].label}」。`
+    : `2. 正向肯定放入「${F.feedback[0].label}」；待改進與具體建議放入「${F.feedback[1].label}」。`;
+
+  return `你是復健科臨床教師的助理。以下是教師對學員的直接觀察筆記，請整理成正式評估表回饋文字，分成 ${keys} ${F.feedback.length} 個欄位。
+
+規則：
+1. 使用繁體中文、臨床專業但精簡的語氣，以具體行為描述為主，每欄 1～3 句。
+${rule2}
+3. 筆記中沒有提到的內容不要編造；若某欄沒有對應內容請留空並註明。
+4. 不要出現病人姓名等可識別資訊。
+
+觀察筆記：
+${notes}`;
+}
+
+function copyPrompt(){
+  const notes = document.getElementById("rawNotes").value.trim();
+  const err = document.getElementById("aiErr");
+  err.style.display="none";
+  if(!notes){ err.textContent="請先在上方貼入觀察筆記。"; err.style.display="block"; return; }
+  const t = buildPrompt(notes);
+  
+  if(navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(t).then(()=>{
+        err.style.color="#2A6B3A"; 
+        err.style.backgroundColor="#E8F1E6"; 
+        err.textContent="✅ 已複製提示詞指令，請貼到 ChatGPT 或 Claude 對話中。"; 
+        err.style.display="block";
+        setTimeout(()=>{err.style.display="none";err.style.color="";err.style.backgroundColor="";},4000);
+      }).catch(()=>{
+        err.style.color="#A33"; err.style.backgroundColor="#FFF0F0";
+        err.textContent="複製失敗，請手動全選下方文字複製：\n" + t; 
+        err.style.display="block";
+      });
+  } else {
+      // Fallback for document.execCommand if clipboard API is restricted
+      const textArea = document.createElement("textarea");
+      textArea.value = t;
+      document.body.appendChild(textArea);
+      textArea.select();
+      try {
+          document.execCommand('copy');
+          err.style.color="#2A6B3A"; err.style.backgroundColor="#E8F1E6"; 
+          err.textContent="✅ 已複製提示詞指令，請貼到 ChatGPT 或 Claude 對話中。"; 
+          err.style.display="block";
+          setTimeout(()=>{err.style.display="none";err.style.color="";err.style.backgroundColor="";},4000);
+      } catch (err) {
+          err.style.color="#A33"; err.style.backgroundColor="#FFF0F0";
+          err.textContent="複製失敗，請手動全選下方文字複製：\n" + t; 
+          err.style.display="block";
+      }
+      document.body.removeChild(textArea);
+  }
+}
+
+// 修改後的 runAI：使用 Canvas 環境內建的 Gemini API 實作
+async function runAI(){
+  const notes = document.getElementById("rawNotes").value.trim();
+  const err = document.getElementById("aiErr");
+  err.style.display="none";
+  if(!notes){ err.textContent="請先在上方貼入觀察筆記。"; err.style.display="block"; return; }
+  
+  const btn = document.getElementById("aiGo");
+  btn.disabled = true; 
+  btn.textContent = "⚙️ AI 整理中…";
+  
+  const F = FORMS[cur];
+  
+  // 建立 Gemini JSON Schema
+  const schemaProperties = {};
+  F.feedback.forEach(f => {
+      schemaProperties[f.k] = { type: "STRING", description: f.label };
+  });
+
+  let rule3 = cur === "minicex" 
+    ? `3. 正向肯定放入「${F.feedback[0].label}」；待改進與具體建議放入「${F.feedback[1].label}」；下次觀察前可執行的具體目標放入「${F.feedback[2].label}」。`
+    : `3. 正向肯定放入「${F.feedback[0].label}」；待改進與具體建議放入「${F.feedback[1].label}」。`;
+
+  const systemPrompt = `你是復健科臨床教師的助理。請將教師對學員的直接觀察筆記，整理成正式評估表回饋文字。
+規則：
+1. 嚴格依照提供的 JSON Schema 輸出。
+2. 使用繁體中文、臨床專業但精簡的語氣，以具體行為描述為主，每個欄位產生 1～3 句話。
+${rule3}
+4. 筆記中沒有提到的內容絕對不要編造；若某欄沒有對應內容，該欄請回傳空字串 ("")。
+5. 內容中絕對不要出現病人姓名等可識別之隱私資訊。`;
+
+  const userQuery = `觀察筆記：\n${notes}`;
+  const apiKey = ""; // API Key 運行時由環境自動注入
+
+  const payload = {
+    contents: [{ parts: [{ text: userQuery }] }],
+    systemInstruction: { parts: [{ text: systemPrompt }] },
+    generationConfig: { 
+        responseMimeType: "application/json", 
+        responseSchema: { 
+            type: "OBJECT", 
+            properties: schemaProperties 
+        } 
+    }
+  };
+
+  try{
+    let data = null, lastErr = null;
+    
+    // 指數退避重試機制
+    const delays = [1000, 2000, 4000];
+    for(let attempt=0; attempt<=3; attempt++){
+      if(attempt > 0) btn.textContent = `⚙️ 整理中…（第 ${attempt+1} 次嘗試）`;
+      try{
+        const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+          method:"POST",
+          headers:{"Content-Type":"application/json"},
+          body:JSON.stringify(payload)
+        });
+        
+        if(!r.ok) throw new Error("API 回應錯誤 "+r.status);
+        data = await r.json();
+        break; // 成功則跳出迴圈
+      }catch(e){
+        lastErr = e;
+        if(attempt < 3) await new Promise(res => setTimeout(res, delays[attempt]));
+      }
+    }
+    
+    if(!data) throw lastErr;
+    
+    const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    if(!textResponse) throw new Error("AI 未回傳內容");
+    
+    const parsed = JSON.parse(textResponse);
+    const S = state[cur];
+    
+    // 將解析出的內容填入對應的 state 欄位中
+    for(const f of FORMS[cur].feedback){
+      if(parsed[f.k] !== undefined){ 
+          S.fb[f.k] = parsed[f.k]; 
+      }
+    }
+    renderFb();
+    
+  }catch(e){
+    err.style.color="#A33"; err.style.backgroundColor="#FFF0F0";
+    err.textContent = "自動整理失敗 ("+e.message+")。請改按「複製整理指令」自行貼到 AI 平台整理。";
+    err.style.display = "block";
+  }finally{
+    btn.disabled = false; btn.textContent = "🚀 AI 整理至回饋欄";
+  }
+}
+
+/* ---------- 匯出 PDF ---------- */
+function box(checked){ return checked ? "■" : "□"; }
+function infoVal(S,k){ return S.info[k] || "　　　　"; }
+
+function buildPrint(){
+  const F = FORMS[cur], S = state[cur];
+  const printDate = S.info.date || "　　年　　月　　日";
+
+  let logoImgHtml = customLogoBase64 
+    ? `<img src="${customLogoBase64}" style="height:70px; margin-bottom:8px; object-fit:contain;">`
+    : `<div style="font-size:10pt; color:#888; margin-bottom:8px;">(尚未設定 Logo，請於畫面上方上傳)</div>`;
+
+  // 修改：將實施日期移至與副標題同一行的右下角
+  let h = `
+    <div style="text-align:center; margin-bottom:6pt;">
+      ${logoImgHtml}
+      <div class="pt-title">${F.title}</div>
+      <div style="display:flex; justify-content:space-between; align-items:flex-end;">
+        <div style="flex:1;"></div>
+        <div class="pt-sub" style="margin-bottom:0;">${F.subtitle}</div>
+        <div style="flex:1; text-align:right; font-size:11pt; font-weight:bold; padding-bottom:2px;">實施日期：${printDate}</div>
+      </div>
+    </div>
+    <hr style="margin-top:2pt;">
+  `;
+
+  if(cur==="minicex"){
+    h += `<div class="pt-row"><b>教師</b>：${infoVal(S,"teacher")}　${["臨床","資深"].map(o=>box(S.info.teacherRole===o)+" "+o).join("　")}</div>`;
+    h += `<div class="pt-row"><b>學員</b>：${infoVal(S,"trainee")}　${["實習","PGY1","PGY2"].map(o=>box(S.info.traineeRole===o)+" "+o).join("　")}</div>`;
+    h += `<div class="pt-row"><b>時間</b>：${infoVal(S,"date")}　${infoVal(S,"time")}　<b>地點</b>：${["電療室","運動治療室","兒童治療室"].map(o=>box(S.info.place===o)+" "+o).join("　")}　${box(S.info.place==="其他")} 其他 ${S.info.placeOther||""}</div>`;
+    h += `<div class="pt-row"><b>病人</b>：${["男","女"].map(o=>box(S.info.sex===o)+" "+o).join("　")}　年齡：${infoVal(S,"age")} 歲　${["新病人","舊病人"].map(o=>box(S.info.newold===o)+" "+o).join("　")}</div>`;
+    h += `<div class="pt-row"><b>診斷</b>：${infoVal(S,"dx")}　/處置操作：${infoVal(S,"proc")}</div>`;
+  } else {
+    h += `<div class="pt-row"><b>實施日期</b>：${infoVal(S,"date")}　<b>評估地點</b>：${["治療室","病房","其他"].map(o=>box(S.info.place===o)+" "+o).join("　")}</div>`;
+    h += `<div class="pt-row"><b>學員</b>：${infoVal(S,"trainee")}　<b>教師</b>：${infoVal(S,"teacher")}</div>`;
+    h += `<div class="pt-row"><b>操作技能名稱</b>：${infoVal(S,"skill")}</div>`;
+    h += `<div class="pt-row">教師曾經使用 DOPS 評估學員的總次數：${["0","1","2","3","4","5-9",">10"].map(o=>box(S.info.tTimes===o)+o).join(" ")}</div>`;
+    h += `<div class="pt-row">學員曾經執行此操作技能總次數：${["0","1","2","3","4","5-9",">10"].map(o=>box(S.info.sTimes===o)+o).join(" ")}</div>`;
+    h += `<div class="pt-row">此操作技能的困難度：${["低","中","高"].map(o=>box(S.info.diff===o)+" "+o).join("　")}</div>`;
+  }
+  h += `<hr><div class="pt-row" style="margin-bottom:6pt;"><b>評量項目</b>（${F.scaleNote}）</div>`;
+  F.items.forEach((it,i)=>{
+    const sel = S.scores[i];
+    let row = `<div class="pt-item" style="display:flex; align-items:center; margin-bottom:2pt;">`;
+    row += `<div style="width:140px; font-weight:bold; flex-shrink:0;">${it.n}</div>`;
+    row += `<div style="flex:1; text-align:center;">`;
+    for(let v=1;v<=9;v++){ 
+      row += `<span style="display:inline-block; margin:0 4px;">${box(sel===v)} ${v}</span>`; 
+      if(v===3||v===6) row += `<span style="display:inline-block; margin:0 4px; color:#888;">｜</span>`; 
+    }
+    row += `<span style="display:inline-block; margin:0 4px; color:#888;">｜</span>`;
+    row += `<span style="display:inline-block; margin:0 4px;">${box(sel==="NA")} ${F.naLabel}</span>`;
+    row += `</div></div>`;
+    h += row;
+    if(it.g) h += `<div class="pt-guide">${it.g}</div>`;
+  });
+  h += `<hr><div class="pt-row"><b>指導與回饋：</b></div>`;
+  for(const f of F.feedback){
+    h += `<div class="pt-fb"><b>(${f.label})</b>${(S.fb[f.k]||"").replace(/\n/g,"<br>")||"<br><br>"}</div>`;
+  }
+  if(cur==="minicex"){
+    h += `<div class="pt-row" style="margin-top:8pt">直接觀察時間：${infoVal(S,"obsMin")} 分鐘，回饋時間：${infoVal(S,"fbMin")} 分鐘</div>`;
+  }
+  h += `<div class="pt-sig">${F.sig.map(s=>`<span>${s}：＿＿＿＿＿＿＿＿＿＿　日期：＿＿＿＿＿＿</span>`).join("")}</div>`;
+  document.getElementById("printArea").innerHTML = h;
+}
+
+async function exportPDF(){
+  const msg = document.getElementById("barMsg");
+  const btn = document.getElementById("exportBtn");
+  msg.textContent = "";
+  if(typeof html2canvas === "undefined" || !window.jspdf){
+    msg.textContent = "PDF 元件載入失敗，請重新整理頁面後再試。";
+    return;
+  }
+  btn.disabled = true; btn.textContent = "產生中…";
+  
+  buildPrint();
+  const area = document.getElementById("printArea");
+  
+  // 【關鍵修正1】先將區塊設為顯示（但移出畫面），迫使瀏覽器開始真實載入圖片與排版
+  area.style.cssText = "display:block;position:fixed;left:-9999px;top:0;width:794px;background:#fff;padding:40px 48px;";
+
+  // 【關鍵修正2】等待所有圖片(Logo)載入完成
+  const images = area.querySelectorAll('img');
+  const imagePromises = Array.from(images).map(img => {
+    if (img.complete && img.naturalHeight > 0) return Promise.resolve();
+    return new Promise(resolve => {
+      img.onload = resolve;
+      img.onerror = resolve; // 即使載入失敗也放行，避免卡死
+    });
+  });
+  
+  await Promise.all(imagePromises);
+
+  // 【關鍵修正3】給予一小段緩衝時間，確保 DOM 排版穩定與字體套用完成
+  await new Promise(r => setTimeout(r, 600));
+
+  try{
+    // 開啟 useCORS 允許跨域圖片繪製
+    const canvas = await html2canvas(area,{scale:2, backgroundColor:"#ffffff", useCORS:true});
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({unit:"mm",format:"a4"});
+    const pageW = 210, pageH = 297;
+    const imgW = pageW;
+    const imgH = canvas.height * imgW / canvas.width;
+    if(imgH <= pageH){
+      pdf.addImage(canvas.toDataURL("image/jpeg",0.95),"JPEG",0,0,imgW,imgH);
+    }else{
+      const pagePx = canvas.width * pageH / pageW;
+      let y = 0, first = true;
+      while(y < canvas.height){
+        const slice = document.createElement("canvas");
+        slice.width = canvas.width;
+        slice.height = Math.min(pagePx, canvas.height - y);
+        slice.getContext("2d").drawImage(canvas,0,y,canvas.width,slice.height,0,0,canvas.width,slice.height);
+        if(!first) pdf.addPage();
+        pdf.addImage(slice.toDataURL("image/jpeg",0.95),"JPEG",0,0,imgW,slice.height*imgW/canvas.width);
+        first = false;
+        y += pagePx;
+      }
+    }
+    const S = state[cur];
+    const who = S.info.trainee || "學員";
+    const d = (S.info.date||new Date().toISOString().slice(0,10)).replace(/-/g,"");
+    let fnamePrefix = "Form";
+    if(cur==="minicex") fnamePrefix = "miniCEX";
+    else if(cur==="dops") fnamePrefix = "SplintDOPS";
+    else if(cur==="evalDops") fnamePrefix = "EvalDOPS";
+    
+    const fname = `${fnamePrefix}_${who}_${d}.pdf`;
+    try{
+      pdf.save(fname);
+      msg.textContent = "PDF 已產生，請查看下載項目。";
+    }catch(e){
+      // 沙箱環境下載備援：開新分頁顯示 PDF
+      const url = pdf.output("bloburl");
+      window.open(url, "_blank");
+      msg.textContent = "已在新分頁開啟 PDF，請用分享鈕儲存。";
+    }
+    setTimeout(()=>{ msg.textContent=""; }, 6000);
+  }catch(e){
+    msg.textContent = "PDF 產生失敗：" + e.message;
+  }finally{
+    area.style.cssText = "";
+    btn.disabled = false; btn.textContent = "匯出 PDF";
+  }
+}
+
+let clearArmed = false;
+function clearAll(){
+  const btn = document.getElementById("clearBtn");
+  const msg = document.getElementById("barMsg");
+  if(!clearArmed){
+    clearArmed = true;
+    btn.textContent = "再按一次確認清除";
+    btn.style.background = "#8A4A3A";
+    btn.style.color = "#fff";
+    msg.textContent = "將清除目前表單所有內容";
+    setTimeout(()=>{
+      clearArmed = false;
+      btn.textContent = "清除重填";
+      btn.style.background = "";
+      btn.style.color = "";
+      msg.textContent = "";
+    }, 4000);
+    return;
+  }
+  clearArmed = false;
+  state[cur] = {info:{},scores:{},fb:{}};
+  document.getElementById("rawNotes").value = "";
+  const btn2 = document.getElementById("clearBtn");
+  btn2.textContent = "清除重填";
+  btn2.style.background = "";
+  btn2.style.color = "";
+  msg.textContent = "已清除";
+  setTimeout(()=>{ msg.textContent=""; }, 2000);
+  render();
+}
+
+prefetchDefaultLogo();
+render();
+</script>
+</body>
+</html>
