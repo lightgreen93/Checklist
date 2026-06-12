@@ -19,6 +19,7 @@
   --high:#E8F1E6; --high-text:#3A6B3A;
   --amber:#B07A1E;
 }
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:"Noto Sans TC",system-ui,sans-serif;background:var(--paper);color:var(--ink);line-height:1.6;-webkit-tap-highlight-color:transparent}
 .wrap{max-width:760px;margin:0 auto;padding:20px 16px 120px}
@@ -75,7 +76,7 @@ header.app p{font-size:.8rem;color:#6B6B60;margin-top:2px}
   #printArea *{visibility:visible}
   @page{size:A4;margin:14mm 16mm}
 }
-#printArea{font-family:"Noto Sans TC","標楷體",serif;color:#000;font-size:10.5pt;line-height:1.55}
+#printArea{font-family:"Noto Sans TC","標楷體",serif;color:#000;font-size:10.5pt;line-height:1.55;-webkit-text-size-adjust:100%;text-size-adjust:100%}
 #printArea .pt-title{text-align:center;font-weight:700;font-size:18pt;margin-bottom:4pt;letter-spacing:0.05em}
 #printArea .pt-sub{text-align:center;font-size:14pt;margin-bottom:12pt}
 #printArea .pt-row{margin:2pt 0}
@@ -141,7 +142,8 @@ header.app p{font-size:.8rem;color:#6B6B60;margin-top:2px}
   <div style="display:flex;flex-direction:column;align-items:center;gap:4px;width:100%">
     <div style="display:flex;gap:10px;justify-content:center">
       <button class="btn-clear" id="clearBtn" onclick="clearAll()">清除重填</button>
-      <button class="btn-export" id="exportBtn" onclick="exportPDF()">匯出 PDF</button>
+      <button class="btn-export" id="exportBtn" onclick="exportPDF('save')">匯出 PDF</button>
+      <button class="btn-export" id="shareBtn" onclick="exportPDF('share')">📤 分享 / 寄送</button>
     </div>
     <div id="barMsg" style="font-size:.75rem;color:#8A8A7E;min-height:1em"></div>
   </div>
@@ -658,11 +660,12 @@ function buildPrint(){
   if(cur==="minicex"){
     h += `<div class="pt-row" style="margin-top:8pt">直接觀察時間：${infoVal(S,"obsMin")} 分鐘，回饋時間：${infoVal(S,"fbMin")} 分鐘</div>`;
   }
-  h += `<div class="pt-sig">${F.sig.map(s=>`<span>${s}：＿＿＿＿＿＿＿＿＿＿　日期：＿＿＿＿＿＿</span>`).join("")}</div>`;
+  h += `<div class="pt-sig">${F.sig.map(s=>`<span style="white-space:nowrap">${s}：<span style="display:inline-block;width:42mm;border-bottom:1px solid #000;">&nbsp;</span>　日期：<span style="display:inline-block;width:24mm;border-bottom:1px solid #000;">&nbsp;</span></span>`).join("")}</div>`;
   document.getElementById("printArea").innerHTML = h;
 }
 
-async function exportPDF(){
+async function exportPDF(mode = "save"){
+  const isShare = mode === "share";
   const msg = document.getElementById("barMsg");
   const btn = document.getElementById("exportBtn");
   msg.textContent = "";
@@ -670,7 +673,10 @@ async function exportPDF(){
     msg.textContent = "PDF 元件載入失敗，請重新整理頁面後再試。";
     return;
   }
-  btn.disabled = true; btn.textContent = "產生中…";
+  const activeBtn = isShare ? document.getElementById("shareBtn") : btn;
+  const origText = activeBtn.textContent;
+  btn.disabled = true; document.getElementById("shareBtn").disabled = true;
+  activeBtn.textContent = "產生中…";
   
   buildPrint();
   const area = document.getElementById("printArea");
@@ -698,6 +704,11 @@ async function exportPDF(){
     const imgH = canvas.height * imgW / canvas.width;
     if(imgH <= pageH){
       pdf.addImage(canvas.toDataURL("image/jpeg",0.95),"JPEG",0,0,imgW,imgH);
+    }else if(imgH <= pageH * 1.15){
+      // 只超出一頁不到 15%：整體等比縮小塞進一頁，避免產生幾乎空白的第二頁
+      const scale = pageH / imgH;
+      const w = imgW * scale;
+      pdf.addImage(canvas.toDataURL("image/jpeg",0.95),"JPEG",(pageW - w)/2,0,w,pageH);
     }else{
       const pagePx = canvas.width * pageH / pageW;
       let y = 0, first = true;
@@ -721,13 +732,31 @@ async function exportPDF(){
     else if(cur==="evalDops") fnamePrefix = "EvalDOPS";
     
     const fname = `${fnamePrefix}_${who}_${d}.pdf`;
-    try{
-      pdf.save(fname);
-      msg.textContent = "PDF 已產生，請查看下載項目。";
-    }catch(e){
-      const url = pdf.output("bloburl");
-      window.open(url, "_blank");
-      msg.textContent = "已在新分頁開啟 PDF，請用分享鈕儲存。";
+    if(isShare){
+      const blob = pdf.output("blob");
+      const file = new File([blob], fname, { type: "application/pdf" });
+      if(navigator.canShare && navigator.canShare({ files: [file] })){
+        try{
+          await navigator.share({ files: [file], title: fname });
+          msg.textContent = "已開啟分享選單。";
+        }catch(e){
+          // 使用者取消分享不算錯誤
+          if(e.name !== "AbortError") msg.textContent = "分享未完成：" + e.message;
+        }
+      }else{
+        // 不支援檔案分享的瀏覽器（如部分桌面瀏覽器）退回下載
+        pdf.save(fname);
+        msg.textContent = "此瀏覽器不支援分享，已改為下載 PDF。";
+      }
+    }else{
+      try{
+        pdf.save(fname);
+        msg.textContent = "PDF 已產生，請查看下載項目。";
+      }catch(e){
+        const url = pdf.output("bloburl");
+        window.open(url, "_blank");
+        msg.textContent = "已在新分頁開啟 PDF，請用分享鈕儲存。";
+      }
     }
     setTimeout(()=>{ msg.textContent=""; }, 6000);
   }catch(e){
@@ -735,6 +764,8 @@ async function exportPDF(){
   }finally{
     area.style.cssText = "";
     btn.disabled = false; btn.textContent = "匯出 PDF";
+    const sb = document.getElementById("shareBtn");
+    sb.disabled = false; sb.textContent = "📤 分享 / 寄送";
   }
 }
 
