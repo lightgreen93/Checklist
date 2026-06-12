@@ -379,179 +379,83 @@ function renderFb(){
 }
 
 /* ---------- AI 整理 ---------- */
-function buildPrompt(notes){
-  const F = FORMS[cur];
-  const keys = F.feedback.map(f=>`「${f.label}」`).join("、");
-  
-  let rule2 = cur === "minicex" 
-    ? `2. 分類邏輯：\n   - 稱讚、做對的地方，歸類為「${F.feedback[0].label}」。\n   - 教師的提醒、指正、建議或需加強處，歸類為「${F.feedback[1].label}」。\n   - 下次需執行的具體計畫，歸類為「${F.feedback[2].label}」。`
-    : `2. 分類邏輯：\n   - 稱讚、做對的地方，歸類為「${F.feedback[0].label}」。\n   - 教師的提醒、指正、建議或需加強處，歸類為「${F.feedback[1].label}」。`;
+function buildPrompt(notes) {
+    const F = FORMS[cur];
+    const keys = F.feedback.map(f => `「${f.label}」`).join("、");
 
-  return `你是復健科臨床教師（物理/職能治療）的專業助理。以下是教師對學員的直接觀察筆記，請整理成正式評估表回饋文字，分成 ${keys} 這 ${F.feedback.length} 個欄位。
+    // 根據表單類型設定分類規則
+    let rule2 = (cur === "minicex")
+        ? `2. 分類邏輯：\n   - 稱讚與做得好的地方，歸類為「${F.feedback[0].label}」。\n   - 教師的提醒、建議、指正或需加強處，歸類為「${F.feedback[1].label}」。\n   - 下次觀察前可執行的具體行動與目標，歸類為「${F.feedback[2].label}」。`
+        : `2. 分類邏輯：\n   - 稱讚與做得好的地方，歸類為「${F.feedback[0].label}」。\n   - 教師的提醒、建議、指正或需加強處，歸類為「${F.feedback[1].label}」。`;
+
+    return `你是復健科臨床教師的專業助理。請將教師的觀察筆記整理成正式評估回饋，分成 ${keys} 這 ${F.feedback.length} 個欄位。
 
 規則：
-1. 使用繁體中文、臨床專業但精簡的語氣，以具體行為描述為主，每欄 1～3 句。
+1. 使用繁體中文、臨床專業精簡語氣，以具體行為描述為主，每欄 1～3 句。
 ${rule2}
-3. 筆記中沒有提到的內容絕對不要編造；若某欄沒有對應內容請留空。
-4. 不要出現病人姓名等可識別資訊。
-5. 直接寫出回饋內容即可，絕對不要在開頭重複加上標題名稱。
+3. 沒提到的內容絕對不要編造；若某欄沒有對應內容請留空。
+4. 不要出現病人姓名等隱私資訊。
+5. 直接給出內容，不要加上標題。
 
 觀察筆記：
 ${notes}`;
 }
 
-function copyPrompt(){
-  const notes = document.getElementById("rawNotes").value.trim();
-  const err = document.getElementById("aiErr");
-  err.style.display="none";
-  if(!notes){ err.textContent="請先在上方貼入觀察筆記。"; err.style.display="block"; return; }
-  const t = buildPrompt(notes);
-  
-  if(navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(t).then(()=>{
-        err.style.color="#2A6B3A"; 
-        err.style.backgroundColor="#E8F1E6"; 
-        err.innerHTML="✅ 已複製提示詞指令，請貼到 <a href='https://chatgpt.com/' target='_blank' style='color:#0E5A5A;'>ChatGPT</a> 或 <a href='https://claude.ai/' target='_blank' style='color:#0E5A5A;'>Claude</a> 對話中。"; 
-        err.style.display="block";
-      }).catch(()=>{
-        err.style.color="#A33"; err.style.backgroundColor="#FFF0F0";
-        err.textContent="複製失敗，請手動全選下方文字複製：\n" + t; 
-        err.style.display="block";
-      });
-  } else {
-      const textArea = document.createElement("textarea");
-      textArea.value = t;
-      document.body.appendChild(textArea);
-      textArea.select();
-      try {
-          document.execCommand('copy');
-          err.style.color="#2A6B3A"; err.style.backgroundColor="#E8F1E6"; 
-          err.innerHTML="✅ 已複製提示詞指令，請貼到 <a href='https://chatgpt.com/' target='_blank' style='color:#0E5A5A;'>ChatGPT</a> 或 <a href='https://claude.ai/' target='_blank' style='color:#0E5A5A;'>Claude</a> 對話中。"; 
-          err.style.display="block";
-      } catch (err) {
-          err.style.color="#A33"; err.style.backgroundColor="#FFF0F0";
-          err.textContent="複製失敗，請手動全選下方文字複製：\n" + t; 
-          err.style.display="block";
-      }
-      document.body.removeChild(textArea);
-  }
-}
+async function runAI() {
+    const notes = document.getElementById("rawNotes").value.trim();
+    const err = document.getElementById("aiErr");
+    err.style.display = "none";
 
-// 自動 AI 整理
-async function runAI(){
-  const notes = document.getElementById("rawNotes").value.trim();
-  const err = document.getElementById("aiErr");
-  err.style.display="none";
-  
-  if(!notes){ err.textContent="請先在上方貼入觀察筆記。"; err.style.display="block"; return; }
-
-  if(!DEVELOPER_API_KEY) {
-    err.style.color="#A33"; err.style.backgroundColor="#FFF0F0";
-    err.innerHTML="【尚未設定 API 金鑰】<br>請開發者用記事本打開這個檔案，將申請到的金鑰貼在第 124 行 <code>DEVELOPER_API_KEY</code> 的引號中。"; 
-    err.style.display="block";
-    return;
-  }
-  
-  const btn = document.getElementById("aiGo");
-  btn.disabled = true; 
-  btn.textContent = "⚙️ AI 整理中…";
-  
-  const F = FORMS[cur];
-  
-  const schemaProperties = {};
-  F.feedback.forEach(f => {
-      schemaProperties[f.k] = { type: "STRING", description: f.label };
-  });
-
-  const keysDesc = F.feedback.map(f => `"${f.k}"(對應表單的「${f.label}」)`).join("、");
-
-  let rule3 = cur === "minicex" 
-    ? `3. 嚴格分類邏輯：\n   - 若筆記內容為稱讚、做得好的地方，請歸類至 "${F.feedback[0].k}" 欄位。\n   - 若筆記內容為教師的提醒、建議、指正或缺失，請歸類至 "${F.feedback[1].k}" 欄位。\n   - 若筆記有明確指出下次該做什麼的具體目標，請歸類至 "${F.feedback[2].k}" 欄位。`
-    : `3. 嚴格分類邏輯：\n   - 若筆記內容為稱讚、做得好的地方，請歸類至 "${F.feedback[0].k}" 欄位。\n   - 若筆記內容為教師的提醒、建議、指正或缺失，請歸類至 "${F.feedback[1].k}" 欄位。`;
-
-  const systemPrompt = `你是復健科臨床教師（物理/職能治療）的專業助理。請將教師對學員的直接觀察筆記，整理成正式評估表回饋文字。
-規則：
-1. 嚴格依照提供的 JSON Schema 輸出，可填寫的欄位名稱為：${keysDesc}。
-2. 使用繁體中文、臨床專業但精簡的語氣，以具體行為描述為主，每個欄位產生 1～3 句話。
-${rule3}
-4. 筆記中沒有提到的內容絕對不要自行推論或編造；若某個欄位沒有對應的內容可填，該欄位請務必直接回傳空字串 ""。
-5. 內容中絕對不要出現病人姓名等可識別之隱私資訊。
-6. 輸出內容直接寫出回饋句子即可，絕對不要在文字開頭重複加上標題（例如：不要寫「值得嘉許：...」）。`;
-
-  const userQuery = `觀察筆記：\n${notes}`;
-
-  const payload = {
-    contents: [{ parts: [{ text: userQuery }] }],
-    systemInstruction: { parts: [{ text: systemPrompt }] },
-    generationConfig: { 
-        responseMimeType: "application/json", 
-        responseSchema: { 
-            type: "OBJECT", 
-            properties: schemaProperties 
-        } 
+    if (!notes) { err.textContent = "請先貼入觀察筆記。"; err.style.display = "block"; return; }
+    if (!DEVELOPER_API_KEY) {
+        err.innerHTML = "尚未設定 API Key，請檢查程式碼第 124 行。";
+        err.style.display = "block"; return;
     }
-  };
 
-  try{
-    let data = null, lastErr = null;
-    const delays = [1000, 2000, 4000];
-    
-    for(let attempt=0; attempt<=3; attempt++){
-      if(attempt > 0) btn.textContent = `⚙️ 整理中…（第 ${attempt+1} 次嘗試）`;
-      try{
+    const btn = document.getElementById("aiGo");
+    btn.disabled = true; btn.textContent = "⚙️ AI 整理中…";
+
+    const F = FORMS[cur];
+    const schemaProperties = {};
+    F.feedback.forEach(f => {
+        schemaProperties[f.k] = { type: "STRING", description: f.label };
+    });
+
+    // 針對兩種表單長度調整 Prompt
+    let rule3 = (cur === "minicex")
+        ? `3. 分類："${F.feedback[0].k}"(稱讚)、"${F.feedback[1].k}"(建議/指正)、"${F.feedback[2].k}"(下次具體目標)。`
+        : `3. 分類："${F.feedback[0].k}"(稱讚)、"${F.feedback[1].k}"(建議/指正)。`;
+
+    const systemPrompt = `你是臨床教學助理。請將筆記整理成 JSON 物件。\n規則：\n${rule3}\n若某欄位沒內容請回傳空字串 ""。請直接輸出 JSON，不要加標題。`;
+
+    try {
         const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${DEVELOPER_API_KEY}`, {
-          method:"POST",
-          headers:{"Content-Type":"application/json"},
-          body:JSON.stringify(payload)
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: `觀察筆記：\n${notes}` }] }],
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+                generationConfig: { responseMimeType: "application/json", responseSchema: { type: "OBJECT", properties: schemaProperties } }
+            })
         });
-        
-        data = await r.json();
-        if(!r.ok) {
-           if (data.error && data.error.message.includes("API key not valid")) {
-               throw new Error("API 金鑰無效或不正確");
-           }
-           throw new Error(data.error?.message || `API 回應錯誤 ${r.status}`);
-        }
-        break; 
-      }catch(e){
-        lastErr = e;
-        if(e.message.includes("API 金鑰無效")) break; 
-        if(attempt < 3) await new Promise(res => setTimeout(res, delays[attempt]));
-      }
-    }
-    
-    if(!data || data.error) throw lastErr;
-    
-    let textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    if(!textResponse) throw new Error("AI 未回傳內容");
-    
-    // 防呆機制：清除 AI 有時會亂加的 Markdown 標籤，防止 JSON 解析失敗
-    textResponse = textResponse.replace(/^```json\n?/i, '').replace(/\n?```$/i, '').trim();
-    
-    const parsed = JSON.parse(textResponse);
-    const S = state[cur];
-    
-    for(const f of FORMS[cur].feedback){
-      if(parsed[f.k] !== undefined){ 
-          S.fb[f.k] = parsed[f.k]; 
-      }
-    }
-    renderFb();
-    
-    err.style.color="#2A6B3A"; err.style.backgroundColor="#E8F1E6"; 
-    err.textContent = "✅ 整理完成！";
-    err.style.display = "block";
-    setTimeout(()=>err.style.display="none", 3000);
-    
-  }catch(e){
-    err.style.color="#A33"; err.style.backgroundColor="#FFF0F0";
-    err.textContent = "自動整理失敗 ("+e.message+")。請稍後再試，或改用「複製整理指令」按鈕。";
-    err.style.display = "block";
-  }finally{
-    btn.disabled = false; btn.textContent = "🚀 AI 整理至回饋欄";
-  }
-}
 
+        const data = await r.json();
+        const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!textResponse) throw new Error("AI 無回應");
+
+        const parsed = JSON.parse(textResponse.replace(/^```json\n?/, '').replace(/\n?```$/, ''));
+        const S = state[cur];
+        for (const f of F.feedback) {
+            S.fb[f.k] = parsed[f.k] || "";
+        }
+        renderFb();
+        err.style.color = "#2A6B3A"; err.textContent = "✅ 整理完成！"; err.style.display = "block";
+        setTimeout(() => err.style.display = "none", 3000);
+    } catch (e) {
+        err.textContent = "整理失敗：" + e.message; err.style.display = "block";
+    } finally {
+        btn.disabled = false; btn.textContent = "🚀 AI 整理至回饋欄";
+    }
 /* ---------- 匯出 PDF ---------- */
 function box(checked){ return checked ? "■" : "□"; }
 function infoVal(S,k){ return S.info[k] || "　　　　"; }
