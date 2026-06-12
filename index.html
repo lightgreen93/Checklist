@@ -154,7 +154,7 @@ header.app p{font-size:.8rem;color:#6B6B60;margin-top:2px}
 // 這樣大家打開網頁就能直接使用自動整理功能，不用再手動設定！
 // =========================================================================
 
-const DEVELOPER_API_KEY = "AQ.Ab8RN6JLlNbS0jxnu-1_zJQ5tMiJCnWvJgBb6O_gSkHLmhV3Pw"; 
+const DEVELOPER_API_KEY = "AIzaSyCruLux6pVpt4f5GYQhTSRceqrTxaDYqtU"; 
 
 // =========================================================================
 
@@ -496,7 +496,7 @@ ${rule3}
       if(attempt > 0) btn.textContent = `⚙️ 整理中…（第 ${attempt+1} 次嘗試）`;
       try{
         // 呼叫公開穩定版的 gemini-1.5-flash 模型
-        const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${DEVELOPER_API_KEY}`, {
+        const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${DEVELOPER_API_KEY}`, {
           method:"POST",
           headers:{"Content-Type":"application/json"},
           body:JSON.stringify(payload)
